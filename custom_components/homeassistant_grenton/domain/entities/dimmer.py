@@ -50,19 +50,24 @@ class GrentonEntityDimmer(BaseGrentonEntity, LightEntity): # pyright: ignore[rep
     def is_on(self) -> bool | None: # pyright: ignore[reportIncompatibleVariableOverride]
         """Return whether the light is on."""
         value = self.coordinator.get_value_for_component(self.state_object)
-        if value is None:
+        if value is None or value == "":
             return None
-        return float(value) > 0
+        try:
+            return float(value) > 0
+        except (ValueError, TypeError):
+            return None
 
     @property
     def brightness(self) -> int | None: # pyright: ignore[reportIncompatibleVariableOverride]
         """Return the brightness of the light (0-255)."""
         value = self.coordinator.get_value_for_component(self.state_object)
-        if value is None:
+        if value is None or value == "":
             return None
-        # Convert from device range to Home Assistant range (0-255)
-        value = float(value)
-        return int(map_range((self.min, self.max), (0, 255), value))
+        try:
+            fval = float(value)
+        except (ValueError, TypeError):
+            return None
+        return int(map_range((self.min, self.max), (0, 255), fval))
 
     async def async_turn_on(self, **kwargs: Any):
         """Turn the light on."""
@@ -70,7 +75,9 @@ class GrentonEntityDimmer(BaseGrentonEntity, LightEntity): # pyright: ignore[rep
             # Convert from HA range (0-255) to device range
             brightness: int = kwargs[ATTR_BRIGHTNESS]
             device_value = map_range((0, 255), (self.min, self.max), brightness)
-            action = dataclasses.replace(self.action_set_value, value=str(round(device_value, self.precision)))
+            rounded = round(device_value, self.precision)
+            value_str = str(int(rounded)) if self.precision == 0 else str(rounded)
+            action = dataclasses.replace(self.action_set_value, value=value_str)
             await self.coordinator.execute_action(action)
         else:
             await self.coordinator.execute_action(self.action_on)

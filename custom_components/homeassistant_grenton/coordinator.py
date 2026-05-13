@@ -132,13 +132,21 @@ class GrentonCoordinator(DataUpdateCoordinator):
         if not api:
             _LOGGER.warning("[%s] No API found for CLU during action execution", action.clu_id)
             return
-        
+
         try:
             success = await api.execute_action(action)
             if not success:
                 _LOGGER.warning("[%s] Action execution failed for payload: %s", action.clu_id, GrentonCluApiActionRequest.from_action(action).payload)
+                return
+            # CLU does not always send a clientReport for execute-triggered changes,
+            # so re-register 0.5 s after the action to pull the confirmed state.
+            asyncio.create_task(self._refresh_state_after_action(action.clu_id))
         except Exception as e:
             _LOGGER.error("[%s] Error executing action: %s", action.clu_id, e)
+
+    async def _refresh_state_after_action(self, clu_id: str) -> None:
+        await asyncio.sleep(0.5)
+        await self._send_register(clu_id)
     
     async def _process_report(self, clu_id: str, values: list[GrentonValue]) -> None:
         """Process a report from a CLU and update state values.

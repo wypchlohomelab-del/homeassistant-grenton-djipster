@@ -20,7 +20,6 @@ from ..domain.devices.value_v2 import GrentonDeviceValueV2
 from ..domain.entities.binary_sensor import GrentonEntityBinarySensor
 from ..domain.entities.bistable_switch import GrentonEntityBistableSwitch
 from ..domain.entities.dimmer import GrentonEntityDimmer
-from ..domain.entities.led import GrentonEntityLed
 from ..domain.entities.roller_shutter_v3 import GrentonEntityRollerShutterV3
 from ..domain.entities.value import GrentonEntityValue
 from ..domain.state_object import GrentonAttributeValueObject
@@ -93,30 +92,66 @@ def _make_led_rgb(
     clu_id: str, lua: str, name: str, dev_id: str,
     coordinator: GrentonCoordinator,
 ) -> GrentonDeviceLed:
-    # LED_RGB / LED_RGBW:
-    #   Value(0)=0-1 brightness, Hue(1)=0-360, Saturation(2)=0-1
-    #   execute(9)=SwitchOn, execute(10)=SwitchOff
-    #   execute(0,v)=SetValue, execute(1,v)=SetHue, execute(2,v)=SetSaturation
+    # LED_RGB: expose R/G/B as separate dimmer entities (0-255 per channel).
+    #   read: RedValue(3), GreenValue(4), BlueValue(5)
+    #   write: SetRedValue=execute(3), SetGreenValue=execute(4), SetBlueValue=execute(5)
     device = GrentonDeviceLed(type="LED_RGB", id=dev_id, entities=[], name=name)
-    entity = GrentonEntityLed(
-        coordinator=coordinator,
-        id=f"{dev_id}_0",
-        label=None,
-        state_object=_attr(clu_id, lua, "Value"),
-        action_on=_exec(clu_id, lua, "9"),
-        action_off=_exec(clu_id, lua, "10"),
-        hue_action=_exec(clu_id, lua, "1"),
-        hue_state_object=_attr(clu_id, lua, "Hue"),
-        hue_range=(0.0, 360.0),
-        saturation_action=_exec(clu_id, lua, "2"),
-        saturation_state_object=_attr(clu_id, lua, "Saturation"),
-        saturation_range=(0.0, 1.0),
-        brightness_action=_exec(clu_id, lua, "0"),
-        brightness_state_object=_attr(clu_id, lua, "Value"),
-        brightness_range=(0.0, 1.0),
-        device_info=device.device_info,
-    )
-    device.entities = [entity]
+    channels = [
+        ("Red",   "RedValue",   "3"),
+        ("Green", "GreenValue", "4"),
+        ("Blue",  "BlueValue",  "5"),
+    ]
+    entities = []
+    for label, attr, method in channels:
+        entities.append(GrentonEntityDimmer(
+            coordinator=coordinator,
+            id=f"{dev_id}_{label.lower()}",
+            label=label,
+            min=0,
+            max=255,
+            precision=0,
+            state_object=_attr(clu_id, lua, attr),
+            action_on=_exec(clu_id, lua, method, "255"),
+            action_off=_exec(clu_id, lua, method, "0"),
+            action_set_value=_exec(clu_id, lua, method),
+            device_info=device.device_info,
+        ))
+    device.entities = entities
+    return device
+
+
+def _make_led_rgbw(
+    clu_id: str, lua: str, name: str, dev_id: str,
+    coordinator: GrentonCoordinator,
+) -> GrentonDeviceLed:
+    # LED_RGBW: expose R/G/B/W as separate dimmer entities (0-255 per channel).
+    #   read: RedValue(3), GreenValue(4), BlueValue(5), WhiteValue(15)
+    #   write: SetRedValue=execute(3), SetGreenValue=execute(4),
+    #          SetBlueValue=execute(5), SetWhiteValue=execute(12)
+    #   NOTE: WhiteValue read attr index=15 but write method index=12
+    device = GrentonDeviceLed(type="LED_RGBW", id=dev_id, entities=[], name=name)
+    channels = [
+        ("Red",   "RedValue",   "3"),
+        ("Green", "GreenValue", "4"),
+        ("Blue",  "BlueValue",  "5"),
+        ("White", "WhiteValue", "12"),
+    ]
+    entities = []
+    for label, attr, method in channels:
+        entities.append(GrentonEntityDimmer(
+            coordinator=coordinator,
+            id=f"{dev_id}_{label.lower()}",
+            label=label,
+            min=0,
+            max=255,
+            precision=0,
+            state_object=_attr(clu_id, lua, attr),
+            action_on=_exec(clu_id, lua, method, "255"),
+            action_off=_exec(clu_id, lua, method, "0"),
+            action_set_value=_exec(clu_id, lua, method),
+            device_info=device.device_info,
+        ))
+    device.entities = entities
     return device
 
 
@@ -256,8 +291,10 @@ class DeviceFromOmMapper:
             return _make_switch(clu_id, lua_name, project_name, dev_id, coordinator)
         if type_id == 5:
             return _make_dimmer(clu_id, lua_name, project_name, dev_id, coordinator)
-        if type_id in (9, 11):
+        if type_id == 9:
             return _make_led_rgb(clu_id, lua_name, project_name, dev_id, coordinator)
+        if type_id == 11:
+            return _make_led_rgbw(clu_id, lua_name, project_name, dev_id, coordinator)
         if type_id == 49:
             return _make_led_channel(clu_id, lua_name, project_name, dev_id, coordinator)
         if type_id == 24:
