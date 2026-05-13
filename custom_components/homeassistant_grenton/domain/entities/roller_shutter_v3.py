@@ -1,3 +1,4 @@
+import dataclasses
 from typing import Any
 from homeassistant.components.cover import CoverEntity, CoverDeviceClass, CoverEntityFeature, ATTR_POSITION, ATTR_TILT_POSITION
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -16,7 +17,7 @@ class GrentonEntityRollerShutterV3(BaseGrentonEntity, CoverEntity): # pyright: i
         self,
         coordinator: GrentonCoordinator,
         id: str,
-        label: str,
+        label: str | None,
         cover_state: GrentonStateObject,
         cover_position: GrentonStateObject,
         set_position: GrentonAction,
@@ -75,19 +76,16 @@ class GrentonEntityRollerShutterV3(BaseGrentonEntity, CoverEntity): # pyright: i
         return value == 1
     
     async def async_open_cover(self, **kwargs: Any) -> None:  # pyright: ignore[reportIncompatibleVariableOverride]
-        self.set_position.value = "100"
-        await self.coordinator.execute_action(self.set_position)
+        await self.coordinator.execute_action(dataclasses.replace(self.set_position, value="100"))
 
     async def async_close_cover(self, **kwargs: Any) -> None:  # pyright: ignore[reportIncompatibleVariableOverride]
-        self.set_position.value = "0"
-        await self.coordinator.execute_action(self.set_position)
+        await self.coordinator.execute_action(dataclasses.replace(self.set_position, value="0"))
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:  # pyright: ignore[reportIncompatibleVariableOverride]
         position = kwargs.get(ATTR_POSITION)
         if position is None:
             return
-        self.set_position.value = str(position)
-        await self.coordinator.execute_action(self.set_position)
+        await self.coordinator.execute_action(dataclasses.replace(self.set_position, value=str(position)))
 
     async def async_stop_cover(self, **kwargs: Any) -> None: # pyright: ignore[reportIncompatibleVariableOverride]
         if self.stop:
@@ -96,14 +94,12 @@ class GrentonEntityRollerShutterV3(BaseGrentonEntity, CoverEntity): # pyright: i
     async def async_open_cover_tilt(self, **kwargs: Any) -> None:  # pyright: ignore[reportIncompatibleVariableOverride]
         if not self.set_tilt_position:
             return
-        self.set_tilt_position.value = "0"
-        await self.coordinator.execute_action(self.set_tilt_position)
+        await self.coordinator.execute_action(dataclasses.replace(self.set_tilt_position, value="0"))
 
     async def async_close_cover_tilt(self, **kwargs: Any) -> None:  # pyright: ignore[reportIncompatibleVariableOverride]
         if not self.set_tilt_position:
             return
-        self.set_tilt_position.value = "90"
-        await self.coordinator.execute_action(self.set_tilt_position)
+        await self.coordinator.execute_action(dataclasses.replace(self.set_tilt_position, value="90"))
 
     async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:  # pyright: ignore[reportIncompatibleVariableOverride]
         if not self.set_tilt_position:
@@ -112,8 +108,7 @@ class GrentonEntityRollerShutterV3(BaseGrentonEntity, CoverEntity): # pyright: i
         if position is None:
             return
         position = map_range((0, 100), (0, 90), int(position))
-        self.set_tilt_position.value = str(int(90 - position))
-        await self.coordinator.execute_action(self.set_tilt_position)
+        await self.coordinator.execute_action(dataclasses.replace(self.set_tilt_position, value=str(int(90 - position))))
 
     async def async_stop_cover_tilt(self, **kwargs: Any) -> None: # pyright: ignore[reportIncompatibleVariableOverride]
         if self.stop:

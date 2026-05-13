@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grenton Workflow Tester</title>
+<style>
+  :root { color-scheme: light dark; --gap: 12px; --br: 6px; }
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 0; padding: 20px; max-width: 1400px; }
+  h1 { font-size: 18px; margin: 0 0 12px; }
+  h2 { font-size: 14px; margin: 20px 0 8px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.05em; }
+  fieldset { border: 1px solid #8884; border-radius: var(--br); padding: 12px; margin: 0 0 var(--gap); }
+  legend { font-weight: 600; padding: 0 4px; }
+  input, button, select { font: inherit; padding: 6px 10px; border-radius: 4px; border: 1px solid #8884; }
+  input:focus { outline: 2px solid #4a90e2; }
+  button { cursor: pointer; background: #4a90e2; color: white; border: none; }
+  button:hover:not(:disabled) { background: #357abd; }
+  button.secondary { background: #8884; color: inherit; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .row { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; }
+  .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 1fr; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .scroll { max-height: 480px; overflow-y: auto; border: 1px solid #8884; border-radius: var(--br); padding: 4px 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { padding: 4px 6px; text-align: left; border-bottom: 1px solid #8882; vertical-align: middle; }
+  th { font-weight: 600; opacity: 0.7; }
+  tr:hover { background: #8881; }
+  .value { font-family: ui-monospace, monospace; font-weight: 600; }
+  .pill { background: #8883; padding: 1px 6px; border-radius: 10px; font-size: 11px; }
+  .muted { opacity: 0.6; font-size: 12px; }
+  .filter { width: 100%; padding: 6px; margin: 0 0 8px; }
+  .err { color: #d33; }
+  .ok { color: #2a7; }
+  .clu-block { margin: 8px 0; }
+  .clu-head { display: flex; gap: 8px; align-items: center; padding: 6px 8px; background: #8881; border-radius: var(--br); }
+  .ctl-row { display: flex; gap: 4px; align-items: center; }
+  .ctl-row input { padding: 2px 6px; width: 80px; }
+</style>
+</head>
+<body>
+
+<h1>Grenton Workflow Tester</h1>
+<p class="muted">Standalone test app — uses the same domain layer as the HA integration.</p>
+
+<fieldset>
+  <legend>1. Connect</legend>
+  <div class="row">
+    <label>OM URL: <input id="om_url" value="http://192.168.5.193:9998" size="30"></label>
+    <label>PIN: <input id="pin" placeholder="892146" size="10"></label>
+    <button id="btn_connect">Connect via OM API</button>
+    <span class="muted">— or —</span>
+    <label>.omp file: <input type="file" id="omp_file" accept=".omp,application/zip"></label>
+    <button id="btn_connect_omp" class="secondary">Use .omp</button>
+    <span id="conn_status" class="muted"></span>
+  </div>
+  <div id="interfaces_panel" style="display:none; margin-top: 8px;" class="muted"></div>
+</fieldset>
+
+<div class="grid">
+  <fieldset>
+    <legend>2. CLUs &amp; om.lua objects</legend>
+    <input class="filter" id="filter" placeholder="Filter objects… (project name, lua name, type)">
+    <div id="clu_list">—</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>3. Subscriptions &amp; live values</legend>
+    <div class="row" style="margin-bottom: 8px;">
+      <span id="sub_status" class="muted">Tick checkboxes on the left, then:</span>
+      <button id="btn_subscribe" disabled>Subscribe selected</button>
+    </div>
+    <div id="ws_status" class="muted"></div>
+    <table>
+      <thead><tr><th>CLU</th><th>Object</th><th>Attr</th><th>Value</th><th>Action</th></tr></thead>
+      <tbody id="state_tbl"></tbody>
+    </table>
+  </fieldset>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const state = {
+  clus: [],              // [{id, name, ip, port}]
+  om: {},                // {clu_id: [{lua_name, project_name, kind, type_id, type_name, features}]}
+  widgets: [],           // from /api/connect
+  selected: new Map(),   // key: `${clu_id}|${lua}|${attr_idx}` → full sub spec
+  current: new Map(),    // key: same → latest value from WS
+  expanded: new Set(),   // `${clu_id}|${lua}` for objects whose channel panel is open
+  ws: null,
+};
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const r = await fetch(path, {
+    headers: {"content-type": "application/json"},
+    ...opts,
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(`${r.status}: ${t}`);
+  }
+  return r.json();
+}
+
+function openWs() {
+  if (state.ws) state.ws.close();
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onopen  = () => $("ws_status").textContent = "WS connected";
+  ws.onclose = () => $("ws_status").textContent = "WS disconnected";
+  ws.onerror = () => $("ws_status").textContent = "WS error";
+  ws.onmessage = ev => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type !== "state") return;
+    for (const v of msg.values) {
+      if (v.kind === "attribute") {
+        state.current.set(subKey(msg.clu_id, v.object_name, v.name), v.value);
+      } else if (v.kind === "variable") {
+        state.current.set(`${msg.clu_id}|VAR|${v.name}`, v.value);
+      }
+    }
+    renderState();
+  };
+  state.ws = ws;
+}
+
+// ── 1. Connect ───────────────────────────────────────────────────────────────
+function afterConnect(data) {
+  state.clus    = data.clus;
+  state.widgets = data.widgets || [];
+  state.om      = {};
+  state.selected.clear();
+  state.current.clear();
+  state.expanded.clear();
+  $("conn_status").textContent = `✓ source=${data.source}, ${data.clus.length} CLUs, ${data.widgets.length} widgets`;
+  $("conn_status").className = "ok";
+  // Show interface picker (only for .omp source)
+  const panel = $("interfaces_panel");
+  if (data.interfaces && data.interfaces.length > 1) {
+    panel.style.display = "block";
+    const opts = data.interfaces.map(i =>
+      `<option value="${i.node_id}" ${i.active ? "selected" : ""}>${i.label} (${i.widget_count} widgets, ${i.page_count} pages)</option>`
+    ).join("");
+    panel.innerHTML = `Switch interface: <select id="iface_select">${opts}</select>
+                       <button id="btn_switch_iface" class="secondary">Apply</button>`;
+    $("btn_switch_iface").onclick = () => uploadOmp($("iface_select").value);
+  } else {
+    panel.style.display = "none";
+  }
+  renderClus();
+  renderState();
+  openWs();
+}
+
+$("btn_connect").onclick = async () => {
+  const om_url = $("om_url").value.trim();
+  const pin    = $("pin").value.trim();
+  if (!om_url) {
+    $("conn_status").textContent = "OM URL is required"; $("conn_status").className = "err"; return;
+  }
+  if (!pin) {
+    $("conn_status").textContent = "PIN is required (placeholder text isn't a value — type the digits)";
+    $("conn_status").className = "err";
+    $("pin").focus();
+    return;
+  }
+  $("conn_status").textContent = "Connecting…"; $("conn_status").className = "muted";
+  try {
+    const data = await api("/api/connect", {method: "POST", body: JSON.stringify({om_url, pin})});
+    afterConnect(data);
+  } catch (e) {
+    $("conn_status").textContent = e.message;
+    $("conn_status").className = "err";
+  }
+};
+
+async function uploadOmp(interfaceNodeId = null) {
+  const fileInput = $("omp_file");
+  if (!fileInput.files.length) {
+    $("conn_status").textContent = "Choose a .omp file first";
+    $("conn_status").className = "err"; return;
+  }
+  $("conn_status").textContent = "Parsing .omp…"; $("conn_status").className = "muted";
+  const fd = new FormData();
+  fd.append("file", fileInput.files[0]);
+  const url = interfaceNodeId
+    ? `/api/connect-omp?interface_node_id=${encodeURIComponent(interfaceNodeId)}`
+    : `/api/connect-omp`;
+  try {
+    const r = await fetch(url, {method: "POST", body: fd});
+    if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+    afterConnect(await r.json());
+  } catch (e) {
+    $("conn_status").textContent = e.message;
+    $("conn_status").className = "err";
+  }
+}
+
+$("btn_connect_omp").onclick = () => uploadOmp();
+
+// ── 2. CLU list & om.lua objects ─────────────────────────────────────────────
+function renderClus() {
+  const root = $("clu_list");
+  if (!state.clus.length) { root.textContent = "—"; return; }
+  root.innerHTML = "";
+  for (const c of state.clus) {
+    const div = document.createElement("div");
+    div.className = "clu-block";
+    div.innerHTML = `
+      <div class="clu-head">
+        <strong>${c.name}</strong>
+        <span class="pill">${c.id}</span>
+        <span class="muted">${c.ip}:${c.port}</span>
+        <button class="secondary" data-clu="${c.id}">Load om.lua</button>
+        <span class="muted" id="clu_status_${c.id}"></span>
+      </div>
+      <div class="scroll" id="clu_objs_${c.id}" style="display:none;"></div>
+    `;
+    div.querySelector("button").onclick = () => loadOmLua(c.id);
+    root.appendChild(div);
+  }
+}
+
+async function loadOmLua(clu_id) {
+  const status = $(`clu_status_${clu_id}`);
+  status.textContent = "Downloading via TFTP…"; status.className = "muted";
+  try {
+    const data = await api(`/api/clus/${clu_id}/om`, {method: "POST"});
+    state.om[clu_id] = data.objects;
+    status.textContent = `✓ ${data.byte_count}B, ${data.objects.length} objects`;
+    status.className = "ok";
+    renderObjects(clu_id);
+  } catch (e) {
+    status.textContent = e.message;
+    status.className = "err";
+  }
+}
+
+function renderObjects(clu_id) {
+  const box = $(`clu_objs_${clu_id}`);
+  box.style.display = "block";
+  const filter = $("filter").value.toLowerCase();
+  const objs = (state.om[clu_id] || [])
+    .filter(o => !filter || (o.project_name + o.lua_name + (o.type_name || "")).toLowerCase().includes(filter))
+    .filter(o => o.kind !== "CLU");
+
+  if (!objs.length) { box.innerHTML = '<div class="muted">no objects match filter</div>'; return; }
+
+  const html = ['<table><thead><tr><th></th><th>Project name</th><th>Lua</th><th>Type</th><th>Channels</th></tr></thead><tbody>'];
+  for (const o of objs) {
+    const readAttrs = o.features?.read || {};
+    const indices   = Object.keys(readAttrs).map(Number).sort((a,b) => a-b);
+    const kind      = o.features?.kind || "generic";
+    const isExpanded = state.expanded.has(`${clu_id}|${o.lua_name}`);
+    // For single-attribute types just show one checkbox; for multi-channel show "expand" button.
+    let chanCol;
+    if (indices.length <= 1) {
+      const idx = indices[0] ?? 0;
+      const k = subKey(clu_id, o.lua_name, idx);
+      const checked = state.selected.has(k) ? "checked" : "";
+      chanCol = `<input type="checkbox" data-sub="${clu_id}|${o.lua_name}|${idx}" ${checked}> attr ${idx}`;
+    } else {
+      chanCol = `<button class="secondary expand-btn" data-key="${clu_id}|${o.lua_name}">${isExpanded ? "Hide" : `Show ${indices.length} channels`}</button>`;
+    }
+    html.push(`<tr>
+      <td><span class="pill">${kind}</span></td>
+      <td>${o.project_name || '—'}</td>
+      <td class="value">${o.lua_name}</td>
+      <td class="muted">${o.type_name || ''}</td>
+      <td>${chanCol}</td>
+    </tr>`);
+    if (isExpanded) {
+      html.push(`<tr><td colspan="5">${renderChannels(clu_id, o)}</td></tr>`);
+    }
+  }
+  html.push("</tbody></table>");
+  box.innerHTML = html.join("");
+
+  // Wire expand buttons
+  box.querySelectorAll(".expand-btn").forEach(b => {
+    b.onclick = () => {
+      const key = b.dataset.key;
+      if (state.expanded.has(key)) state.expanded.delete(key);
+      else state.expanded.add(key);
+      renderObjects(clu_id);
+    };
+  });
+
+  // Wire action buttons (Open/Close/Stop etc.) — fire execute directly, no subscribe needed.
+  box.querySelectorAll(".action-btn").forEach(b => {
+    b.onclick = async () => {
+      try {
+        await api("/api/execute", {
+          method: "POST",
+          body: JSON.stringify({
+            clu_id: b.dataset.clu,
+            object_name: b.dataset.obj,
+            method: b.dataset.method,
+            value: b.dataset.value || "",
+          }),
+        });
+      } catch (e) {
+        alert("Execute failed: " + e.message);
+      }
+    };
+  });
+
+  // Wire all sub-key checkboxes (both single-attr and channel ones)
+  box.querySelectorAll('input[data-sub]').forEach(cb => {
+    cb.onchange = () => {
+      const [clu, lua, idxStr] = cb.dataset.sub.split("|");
+      const idx = Number(idxStr);
+      const subK = subKey(clu, lua, idx);
+      if (cb.checked) {
+        const obj = (state.om[clu] || []).find(o => o.lua_name === lua);
+        const readEntry = obj?.features?.read?.[idx];
+        const wm = resolveWriteMethod(obj, idx);
+        const hasWrite = wm >= 0;
+        const writeEntry = hasWrite ? obj?.features?.write?.[wm] : null;
+        state.selected.set(subK, {
+          clu_id: clu, lua_name: lua,
+          project_name: obj?.project_name,
+          type_name: obj?.type_name,
+          kind: obj?.features?.kind,
+          attr_index: idx,
+          attr_name: readEntry ? readEntry[0] : `attr_${idx}`,
+          attr_range: readEntry ? readEntry[1] : "?",
+          write_method: hasWrite ? String(wm) : null,
+          write_name: writeEntry ? writeEntry[0] : (hasWrite ? `method_${wm}` : null),
+          write_range: writeEntry ? writeEntry[1] : (hasWrite ? "?" : null),
+          write_call_type: writeEntry?.[2] ?? "execute",
+        });
+      } else {
+        state.selected.delete(subK);
+      }
+      $("btn_subscribe").disabled = state.selected.size === 0;
+      $("sub_status").textContent = `${state.selected.size} selected`;
+    };
+  });
+}
+
+function resolveWriteMethod(o, idx) {
+  // Returns the write method index for a read attr, or -1 if read-only.
+  // Explicit channel_map wins; otherwise same index as read attr.
+  const cm = o.features?.channel_map;
+  if (cm && Object.prototype.hasOwnProperty.call(cm, idx)) return cm[idx];
+  return idx;
+}
+
+function renderChannels(clu_id, o) {
+  const readAttrs = o.features?.read || {};
+  const channels  = Object.keys(readAttrs).map(Number).sort((a,b)=>a-b);
+  const rows = ['<table style="margin: 4px 0 8px 24px;"><thead><tr><th></th><th>Index</th><th>Attribute</th><th>Range</th><th>→ Write method</th></tr></thead><tbody>'];
+  for (const idx of channels) {
+    const [name, range] = readAttrs[idx];
+    const wm = resolveWriteMethod(o, idx);
+    const hasWrite = wm >= 0;
+    const wEntry = hasWrite ? o.features?.write?.[wm] : null;
+    const wCallType = wEntry?.[2] ?? "execute";
+    const wLabel = hasWrite ? `${wm}: ${wEntry ? wEntry[0] : `method ${wm}`} (${wCallType})` : '—';
+    const k = subKey(clu_id, o.lua_name, idx);
+    const checked = state.selected.has(k) ? "checked" : "";
+    rows.push(`<tr>
+      <td><input type="checkbox" data-sub="${clu_id}|${o.lua_name}|${idx}" ${checked}></td>
+      <td class="value">${idx}</td>
+      <td>${name}</td>
+      <td class="muted">${range}</td>
+      <td class="muted">${wLabel}</td>
+    </tr>`);
+  }
+  // Dedicated action buttons for write-only methods (no read attr counterpart).
+  // Tuple shape: [method_index, label, value]  (value defaults to "" if omitted)
+  const actions = o.features?.actions || [];
+  if (actions.length) {
+    const btns = actions.map(([m, label, val = ""]) =>
+      `<button class="secondary action-btn" style="margin-right:4px"
+        data-clu="${clu_id}" data-obj="${o.lua_name}"
+        data-method="${m}" data-value="${val}">${label}</button>`
+    ).join("");
+    rows.push(`<tr><td colspan="5" style="padding:4px 0 6px 24px;">
+      <span class="muted" style="margin-right:6px">Actions:</span>${btns}
+    </td></tr>`);
+  }
+  rows.push("</tbody></table>");
+  return rows.join("");
+}
+
+function subKey(clu_id, lua_name, idx) {
+  return `${clu_id}|${lua_name}|${idx}`;
+}
+
+$("filter").oninput = () => {
+  for (const id of Object.keys(state.om)) renderObjects(id);
+};
+
+// ── 3. Subscribe + live values ───────────────────────────────────────────────
+$("btn_subscribe").onclick = async () => {
+  // Group selections by CLU so each CLU gets one register call with its key list.
+  const byClu = new Map();
+  for (const it of state.selected.values()) {
+    if (!byClu.has(it.clu_id)) byClu.set(it.clu_id, []);
+    byClu.get(it.clu_id).push(it);
+  }
+  for (const [clu_id, items] of byClu) {
+    const keys = items.map(it => ({
+      kind: "attribute",
+      object_name: it.lua_name,
+      name: String(it.attr_index),
+    }));
+    try {
+      await api("/api/subscribe", {method: "POST", body: JSON.stringify({clu_id, keys})});
+    } catch (e) {
+      $("sub_status").textContent = `Subscribe failed: ${e.message}`;
+      $("sub_status").className = "err";
+      return;
+    }
+  }
+  $("sub_status").textContent = `Subscribed ${state.selected.size} attributes`;
+  $("sub_status").className = "ok";
+};
+
+function renderState() {
+  const tbody = $("state_tbl");
+  if (!state.selected.size) { tbody.innerHTML = ""; return; }
+  const rows = [];
+  for (const it of state.selected.values()) {
+    const k = subKey(it.clu_id, it.lua_name, it.attr_index);
+    const val = state.current.has(k) ? state.current.get(k) : "(waiting…)";
+    const valDisp = val === null ? "nil" : (val === true ? "true" : val === false ? "false" : String(val));
+    rows.push(`<tr>
+      <td><span class="pill">${cluName(it.clu_id)}</span></td>
+      <td>${it.project_name || it.lua_name}<br><span class="muted">${it.lua_name} · ${it.attr_name || ''}</span></td>
+      <td class="value">attr ${it.attr_index}<br><span class="muted">m:${it.write_method ?? '-'}</span></td>
+      <td class="value">${valDisp}</td>
+      <td>${renderControl(it)}</td>
+    </tr>`);
+  }
+  tbody.innerHTML = rows.join("");
+  wireControls(tbody);
+}
+
+function cluName(id) {
+  const c = state.clus.find(c => c.id === id);
+  return c ? c.name : id;
+}
+
+function renderControl(it) {
+  if (it.write_method === null || it.write_method === undefined) {
+    return '<span class="muted">(read-only)</span>';
+  }
+  const subK = subKey(it.clu_id, it.lua_name, it.attr_index);
+  const range = it.write_range || "";
+  const method = it.write_method ?? "0";
+
+  // Boolean methods: empty range means parameter-less (SwitchOn/SwitchOff/etc.) — render as a button.
+  if (range === "" || range === "0|1") {
+    return `
+      <span class="ctl-row">
+        <button data-act="exec" data-key="${subK}" data-method="${method}" data-value="0" class="secondary">0 / Off</button>
+        <button data-act="exec" data-key="${subK}" data-method="${method}" data-value="1">1 / On</button>
+      </span>`;
+  }
+  // RGB hex
+  if (range.startsWith("#")) {
+    return `
+      <span class="ctl-row">
+        <input type="color" data-input-for="${subK}" value="#000000">
+        <button data-act="exec" data-key="${subK}" data-method="${method}">Set</button>
+      </span>`;
+  }
+  // Numeric range like "0-255", "0-360", "0.0-1.0", "0-100"
+  const m = range.match(/^([-\d.]+)\s*-\s*([-\d.]+)/);
+  if (m) {
+    const [_, lo, hi] = m;
+    const isFloat = range.includes(".");
+    const step = isFloat ? "0.01" : "1";
+    return `
+      <span class="ctl-row">
+        <input type="range" min="${lo}" max="${hi}" step="${step}" data-input-for="${subK}" data-method="${method}">
+        <input type="number" min="${lo}" max="${hi}" step="${step}" data-input-num-for="${subK}" style="width:70px">
+        <button data-act="exec" data-key="${subK}" data-method="${method}">Set</button>
+      </span>`;
+  }
+  // Generic fallback
+  return `
+    <span class="ctl-row">
+      <input type="text" data-input-for="${subK}" placeholder="${range}">
+      <button data-act="exec" data-key="${subK}" data-method="${method}">Send</button>
+    </span>`;
+}
+
+function wireControls(root) {
+  // Keep number input + slider in sync.
+  root.querySelectorAll('input[type=range][data-input-for]').forEach(rng => {
+    const numInput = root.querySelector(`input[data-input-num-for="${rng.dataset.inputFor}"]`);
+    if (numInput) {
+      rng.oninput  = () => { numInput.value = rng.value; };
+      numInput.oninput = () => { rng.value = numInput.value; };
+    }
+  });
+  // Color input: when used, the picker value goes via the button below.
+  root.querySelectorAll("button[data-act=exec]").forEach(b => {
+    b.onclick = async () => {
+      const subK = b.dataset.key;
+      const [clu_id, lua_name] = subK.split("|");
+      const method = b.dataset.method || "0";
+      const call_type = state.selected.get(subK)?.write_call_type ?? "execute";
+      let value = b.dataset.value;
+      if (value === undefined) {
+        const input = root.querySelector(`input[data-input-for="${subK}"]`);
+        value = input ? input.value : "";
+        // For color picker, strip the leading '#' before sending (CLU expects RRGGBB)
+        if (input?.type === "color") value = String(value).replace(/^#/, "").toUpperCase();
+      }
+      try {
+        await api("/api/execute", {
+          method: "POST",
+          body: JSON.stringify({clu_id, object_name: lua_name, method, value: String(value), call_type}),
+        });
+      } catch (e) {
+        alert("Execute failed: " + e.message);
+      }
+    };
+  });
+}
+</script>
+</body>
+</html>

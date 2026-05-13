@@ -18,12 +18,13 @@ class DeviceDimmerV2Mapper:
             type=dto.type,
             id=dto.id,
             entities=[],
+            name=dto.label,
         )
-        
+
         entity = GrentonEntityDimmer(
             coordinator=coordinator,
             id=f"{dto.id}_0",
-            label=dto.label,
+            label=None,
             min=dto.min,
             max=dto.max,
             precision=dto.precision,

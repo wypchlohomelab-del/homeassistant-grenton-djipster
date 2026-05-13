@@ -53,7 +53,7 @@ class GrentonEntityBinarySensor( # pyright: ignore[reportIncompatibleVariableOve
         self,
         coordinator: GrentonCoordinator,
         id: str,
-        label: str,
+        label: str | None,
         reversed: bool,
         state_object: GrentonStateObject,
         device_info: DeviceInfo | None = None,

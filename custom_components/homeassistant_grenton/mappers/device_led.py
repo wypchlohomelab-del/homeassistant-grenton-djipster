@@ -21,6 +21,7 @@ class DeviceLedMapper:
             type=dto.type,
             id=dto.id,
             entities=[],
+            name=None,
         )
 
         on_off_component: GrentonComponentLedButtonDto | None = None
@@ -54,10 +55,12 @@ class DeviceLedMapper:
         if not action_on or not action_off:
             return device  # Incomplete LED button actions, return device without entities
         
+        device.name = on_off_component.label
+
         entity = GrentonEntityLed(
             coordinator=coordinator,
             id=f"{dto.id}_0",
-            label=on_off_component.label,
+            label=None,
             state_object=GrentonStateObject.from_dto(on_off_component.state),
             action_on=action_on,
             action_off=action_off,

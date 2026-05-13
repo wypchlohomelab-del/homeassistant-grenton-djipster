@@ -13,10 +13,8 @@ if TYPE_CHECKING:
 
 class GrentonConfigEntryData(TypedDict):
     """Type definition for config entry data."""
-    ip_address: str
-    port: int
-    pin: str
     interface: dict[str, Any]
+    object_names: dict[str, str]  # lua_name -> project_name from om.lua; may be empty
 
 
 @dataclass

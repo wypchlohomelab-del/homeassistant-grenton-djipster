@@ -26,6 +26,7 @@ class GrentonCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name=DOMAIN,
+            config_entry=config_entry,
         )
         
         self.config_entry = config_entry

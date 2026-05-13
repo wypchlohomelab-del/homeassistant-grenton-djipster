@@ -1,3 +1,4 @@
+import dataclasses
 from typing import Any
 
 from homeassistant.components.light import LightEntity, ATTR_BRIGHTNESS, ATTR_HS_COLOR
@@ -21,7 +22,7 @@ class GrentonEntityLed(BaseGrentonEntity, LightEntity): # pyright: ignore[report
         self,
         coordinator: GrentonCoordinator,
         id: str,
-        label: str,
+        label: str | None,
         state_object: GrentonStateObject,
         action_on: GrentonAction,
         action_off: GrentonAction,
@@ -92,19 +93,14 @@ class GrentonEntityLed(BaseGrentonEntity, LightEntity): # pyright: ignore[report
         if ATTR_HS_COLOR in kwargs:
             hs_color: tuple[float, float] = kwargs[ATTR_HS_COLOR]
             hue, saturation = hs_color
-            # Convert from HA range to device range
             hue_device_value = map_range((0, 360), self.hue_range, hue)
             saturation_device_value = map_range((0, 100), self.saturation_range, saturation)
-            self.hue_action.value = str(round(hue_device_value, 2))
-            self.saturation_action.value = str(round(saturation_device_value, 2))
-            await self.coordinator.execute_action(self.hue_action)
-            await self.coordinator.execute_action(self.saturation_action)
+            await self.coordinator.execute_action(dataclasses.replace(self.hue_action, value=str(round(hue_device_value, 2))))
+            await self.coordinator.execute_action(dataclasses.replace(self.saturation_action, value=str(round(saturation_device_value, 2))))
         if ATTR_BRIGHTNESS in kwargs:
-            # Convert from HA range (0-255) to device range
             brightness: int = kwargs[ATTR_BRIGHTNESS]
             device_value = map_range((0, 255), self.brightness_range, brightness)
-            self.brightness_action.value = str(round(device_value, 2))
-            await self.coordinator.execute_action(self.brightness_action)
+            await self.coordinator.execute_action(dataclasses.replace(self.brightness_action, value=str(round(device_value, 2))))
 
         await self.coordinator.execute_action(self.action_on)
 

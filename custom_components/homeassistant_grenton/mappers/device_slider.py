@@ -20,14 +20,15 @@ class DeviceSliderMapper:
             type=dto.type,
             id=dto.id,
             entities=[],
+            name=dto.label,
         )
 
         entities: list[BaseGrentonEntity] = []
-        
+
         slider_entity = GrentonEntitySlider(
             coordinator=coordinator,
             id=f"{dto.id}_slider",
-            label=dto.label,
+            label=None,
             min=dto.min,
             max=dto.max,
             precision=dto.precision,
@@ -42,7 +43,7 @@ class DeviceSliderMapper:
             button_entity = GrentonEntityButton(
                 coordinator=coordinator,
                 id=f"{dto.id}_button",
-                label=dto.label,
+                label="Button",
                 action_click=GrentonAction.from_dto(dto.object.clickAction),
                 device_info=device.device_info,
             )

@@ -20,14 +20,15 @@ class DeviceContactSensorMapper:
             type=dto.type,
             id=dto.id,
             entities=[],
+            name=dto.label,
         )
-        
+
         entities: list[BaseGrentonEntity] = []
 
         binary_sensor = GrentonEntityBinarySensor(
             coordinator=coordinator,
             id=f"{dto.id}_binary_sensor",
-            label=dto.label,
+            label=None,
             reversed=dto.reverseState,
             state_object=GrentonStateObject.from_dto(dto.object.value),
             device_info=device.device_info,
@@ -39,7 +40,7 @@ class DeviceContactSensorMapper:
             button = GrentonEntityButton(
                 coordinator=coordinator,
                 id=f"{dto.id}_button",
-                label=dto.label,
+                label="Button",
                 action_click=GrentonAction.from_dto(dto.object.clickAction),
                 device_info=device.device_info,
             )

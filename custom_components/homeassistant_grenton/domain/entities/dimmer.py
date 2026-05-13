@@ -1,3 +1,4 @@
+import dataclasses
 from typing import Any
 
 from homeassistant.components.light import LightEntity, ATTR_BRIGHTNESS
@@ -21,7 +22,7 @@ class GrentonEntityDimmer(BaseGrentonEntity, LightEntity): # pyright: ignore[rep
         self,
         coordinator: GrentonCoordinator,
         id: str,
-        label: str,
+        label: str | None,
         min: float,
         max: float,
         precision: int,
@@ -69,8 +70,8 @@ class GrentonEntityDimmer(BaseGrentonEntity, LightEntity): # pyright: ignore[rep
             # Convert from HA range (0-255) to device range
             brightness: int = kwargs[ATTR_BRIGHTNESS]
             device_value = map_range((0, 255), (self.min, self.max), brightness)
-            self.action_set_value.value = str(round(device_value, self.precision))
-            await self.coordinator.execute_action(self.action_set_value)
+            action = dataclasses.replace(self.action_set_value, value=str(round(device_value, self.precision)))
+            await self.coordinator.execute_action(action)
         else:
             await self.coordinator.execute_action(self.action_on)
 

@@ -19,30 +19,23 @@ class DeviceMultisensorMapper:
             type=dto.type,
             id=dto.id,
             entities=[],
+            name=dto.label,
         )
-
-        # objectAirCo2: GrentonObjectMultisensorDto
-        # objectSound: GrentonObjectMultisensorDto
-        # objectAirVoc: GrentonObjectMultisensorDto
-        # objectLight: GrentonObjectMultisensorDto
-        # objectPressure: GrentonObjectMultisensorDto
-        # objectHumidity: GrentonObjectMultisensorDto
-        # objectTemperature: GrentonObjectMultisensorDto
 
         entity_air_co2 = GrentonEntityMultisensor(
             coordinator=coordinator,
             id=f"{dto.id}_air_co2",
-            label=dto.label,
+            label=None,
             device_class=SensorDeviceClass.CO2,
             unit_of_measurement="ppm",
             state_object=GrentonStateObject.from_dto(dto.objectAirCo2.value),
             device_info=device.device_info,
         )
-        
+
         entity_sound = GrentonEntityMultisensor(
             coordinator=coordinator,
             id=f"{dto.id}_sound",
-            label=dto.label,
+            label=None,
             device_class=SensorDeviceClass.SOUND_PRESSURE,
             unit_of_measurement="dB",
             state_object=GrentonStateObject.from_dto(dto.objectSound.value),
@@ -52,7 +45,7 @@ class DeviceMultisensorMapper:
         entity_air_voc = GrentonEntityMultisensor(
             coordinator=coordinator,
             id=f"{dto.id}_air_voc",
-            label=dto.label,
+            label=None,
             device_class=SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
             unit_of_measurement="ppb",
             state_object=GrentonStateObject.from_dto(dto.objectAirVoc.value),
@@ -62,7 +55,7 @@ class DeviceMultisensorMapper:
         entity_light = GrentonEntityMultisensor(
             coordinator=coordinator,
             id=f"{dto.id}_light",
-            label=dto.label,
+            label=None,
             device_class=SensorDeviceClass.ILLUMINANCE,
             unit_of_measurement="lx",
             state_object=GrentonStateObject.from_dto(dto.objectLight.value),
@@ -72,7 +65,7 @@ class DeviceMultisensorMapper:
         entity_pressure = GrentonEntityMultisensor(
             coordinator=coordinator,
             id=f"{dto.id}_pressure",
-            label=dto.label,
+            label=None,
             device_class=SensorDeviceClass.PRESSURE,
             unit_of_measurement="hPa",
             state_object=GrentonStateObject.from_dto(dto.objectPressure.value),
@@ -82,7 +75,7 @@ class DeviceMultisensorMapper:
         entity_humidity = GrentonEntityMultisensor(
             coordinator=coordinator,
             id=f"{dto.id}_humidity",
-            label=dto.label,
+            label=None,
             device_class=SensorDeviceClass.HUMIDITY,
             unit_of_measurement="%",
             state_object=GrentonStateObject.from_dto(dto.objectHumidity.value),
@@ -92,7 +85,7 @@ class DeviceMultisensorMapper:
         entity_temperature = GrentonEntityMultisensor(
             coordinator=coordinator,
             id=f"{dto.id}_temperature",
-            label=dto.label,
+            label=None,
             device_class=SensorDeviceClass.TEMPERATURE,
             unit_of_measurement="°C",
             state_object=GrentonStateObject.from_dto(dto.objectTemperature.value),

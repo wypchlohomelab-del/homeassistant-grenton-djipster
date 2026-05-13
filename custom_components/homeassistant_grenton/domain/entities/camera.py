@@ -13,7 +13,7 @@ class GrentonEntityCamera( # pyright: ignore[reportIncompatibleVariableOverride]
         self,
         coordinator: GrentonCoordinator,
         id: str,
-        label: str,
+        label: str | None,
         stream: str,
         device_info: DeviceInfo | None = None,
     ) -> None:

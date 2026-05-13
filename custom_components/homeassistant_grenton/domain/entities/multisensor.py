@@ -14,7 +14,7 @@ class GrentonEntityMultisensor( # pyright: ignore[reportIncompatibleVariableOver
         self,
         coordinator: GrentonCoordinator,
         id: str,
-        label: str,
+        label: str | None,
         device_class: SensorDeviceClass,
         unit_of_measurement: str,
         state_object: GrentonStateObject,

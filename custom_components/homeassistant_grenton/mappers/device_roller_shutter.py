@@ -19,12 +19,13 @@ class DeviceRollerShutterMapper:
             type=dto.type,
             id=dto.id,
             entities=[],
+            name=dto.components[0].label,
         )
-        
+
         entity_sensor = GrentonEntityRollerShutterSensor(
             coordinator=coordinator,
             id=f"{dto.id}_sensor",
-            label=dto.components[0].label,
+            label=None,
             state_object=GrentonStateObject.from_dto(dto.components[0].state),
             device_info=device.device_info,
         )
@@ -32,7 +33,7 @@ class DeviceRollerShutterMapper:
         entity_button = GrentonEntityButton(
             coordinator=coordinator,
             id=f"{dto.id}_button",
-            label=dto.components[0].label,
+            label="Button",
             action_click=GrentonAction.from_dto(dto.components[0].actions[0]),
             device_info=device.device_info,
         )

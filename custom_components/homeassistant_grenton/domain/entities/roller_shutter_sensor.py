@@ -17,7 +17,7 @@ class GrentonEntityRollerShutterSensor( # pyright: ignore[reportIncompatibleVari
         self,
         coordinator: GrentonCoordinator,
         id: str,
-        label: str,
+        label: str | None,
         state_object: GrentonStateObject,
         device_info: DeviceInfo | None = None,
     ) -> None:

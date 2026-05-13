@@ -105,11 +105,25 @@ class GrentonCluApi:
         if not self.protocol:
             _LOGGER.warning("[%s] No protocol available for action execution", self.clu.id)
             return False
-        
+
         request = GrentonCluApiActionRequest.from_action(action)
+        _LOGGER.debug("[%s] Executing: %s", self.clu.id, request.raw)
         wire_message = await self.protocol.send_request(request)
-        
+        if wire_message is not None:
+            _LOGGER.debug("[%s] Execute response: %s", self.clu.id, wire_message)
         return wire_message is not None
+
+    async def execute_action_raw(self, action: GrentonAction) -> str | None:
+        """Execute an action and return the raw CLU response string, or None on timeout."""
+        if not self.protocol:
+            _LOGGER.warning("[%s] No protocol available for action execution", self.clu.id)
+            return None
+
+        request = GrentonCluApiActionRequest.from_action(action)
+        _LOGGER.info("[%s] Executing: %s", self.clu.id, request.raw)
+        wire_message = await self.protocol.send_request(request)
+        _LOGGER.info("[%s] Execute response: %s", self.clu.id, wire_message)
+        return wire_message
 
 
 class GrentonCluApiProtocol(asyncio.DatagramProtocol):

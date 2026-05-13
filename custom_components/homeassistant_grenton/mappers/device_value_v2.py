@@ -17,12 +17,13 @@ class DeviceValueV2Mapper:
             type=dto.type,
             id=dto.id,
             entities=[],
+            name=dto.label,
         )
-        
+
         entity = GrentonEntityValue(
             coordinator=coordinator,
             id=f"{dto.id}_0",
-            label=dto.label,
+            label=None,
             state_object=GrentonStateObject.from_dto(dto.object.value),
             device_info=device.device_info,
         )

@@ -17,7 +17,7 @@ class GrentonEntityBistableSwitch(BaseGrentonEntity, SwitchEntity): # pyright: i
         self,
         coordinator: GrentonCoordinator,
         id: str,
-        label: str,
+        label: str | None,
         unit: GrentonUnit,
         state_object: GrentonStateObject,
         action_on: GrentonAction,

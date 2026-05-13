@@ -1,3 +1,4 @@
+import dataclasses
 from dataclasses import dataclass
 from typing import Any, Dict
 
@@ -123,7 +124,7 @@ class GrentonEntitySlider( # pyright: ignore[reportIncompatibleVariableOverride]
         self,
         coordinator: GrentonCoordinator,
         id: str,
-        label: str,
+        label: str | None,
         min: float,
         max: float,
         precision: int,
@@ -162,8 +163,8 @@ class GrentonEntitySlider( # pyright: ignore[reportIncompatibleVariableOverride]
         return self.coordinator.get_value_for_component(self.state_object)
     
     async def async_set_native_value(self, value: float) -> None:  # pyright: ignore[reportIncompatibleVariableOverride]
-        self.action_set_value.value = str(round(value, self.precision))
-        await self.coordinator.execute_action(self.action_set_value)
+        action = dataclasses.replace(self.action_set_value, value=str(round(value, self.precision)))
+        await self.coordinator.execute_action(action)
     
     @property
     def mode(self) -> str:  # pyright: ignore[reportIncompatibleVariableOverride]

@@ -18,12 +18,13 @@ class DeviceRollerShutterV3Mapper:
             type=dto.type,
             id=dto.id,
             entities=[],
+            name=dto.label,
         )
-        
+
         entity = GrentonEntityRollerShutterV3(
             coordinator=coordinator,
             id=dto.id,
-            label=dto.label,
+            label=None,
             cover_state=GrentonStateObject.from_dto(dto.object.state),
             cover_position=GrentonStateObject.from_dto(dto.object.position),
             set_position=GrentonAction.from_dto(dto.object.setPositionAction),

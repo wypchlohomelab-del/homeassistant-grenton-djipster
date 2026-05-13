@@ -103,7 +103,7 @@ class GrentonEntityValue( # pyright: ignore[reportIncompatibleVariableOverride]
         self,
         coordinator: GrentonCoordinator,
         id: str,
-        label: str,
+        label: str | None,
         state_object: GrentonStateObject,
         device_info: DeviceInfo | None = None,
     ) -> None:

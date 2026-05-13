@@ -3,8 +3,6 @@
 import logging
 from typing import Any
 import aiohttp
-import io
-import zipfile
 import json
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,69 +32,46 @@ class GrentonObjectManagerApi:
     
     async def fetch_mobile_interface(self, pin: str) -> dict[str, Any]:
         """Fetch mobile interface data from Grenton Object Manager.
-        
+
         Args:
-            pin: PIN code for authentication
-            
+            pin: PIN code for authentication (the token shown in OM's push dialog)
+
         Returns:
             Parsed mobile interface data as a dictionary
-            
+
         Raises:
-            GrentonObjectManagerAuthError: If authentication fails
+            GrentonObjectManagerAuthError: If authentication fails (wrong PIN)
             GrentonObjectManagerConnectionError: If connection fails
             GrentonObjectManagerDataError: If data is invalid
         """
         if not self.session:
-            raise RuntimeError("API client not initialized. Use async context manager or call connect() first.")
-        
-        url = f"{self.base_url}/api/v1/interface/hash/{pin}"
-        
+            raise RuntimeError("API client not initialized. Use async context manager.")
+
+        # /object returns JSON directly — no ZIP extraction needed
+        url = f"{self.base_url}/api/v1/interface/hash/{pin.strip()}/object"
+        _LOGGER.debug("Fetching OM interface: %s", url)
+
         try:
             async with self.session.get(url) as response:
                 if response.status == 200:
-                    raw_data = await response.read()
-                    return self._parse_interface_zip(raw_data)
-                elif response.status == 401:
-                    raise GrentonObjectManagerAuthError("Authentication failed: Invalid PIN")
-                else:
-                    raise GrentonObjectManagerConnectionError(
-                        f"Failed to fetch interface: HTTP {response.status}"
+                    try:
+                        return json.loads(await response.text())
+                    except json.JSONDecodeError as e:
+                        raise GrentonObjectManagerDataError(f"Invalid JSON from OM: {e}")
+                body_preview = (await response.text())[:200]
+                if response.status in (400, 401):
+                    raise GrentonObjectManagerAuthError(
+                        f"Authentication failed (HTTP {response.status}): Invalid PIN — "
+                        f"check OM's 'Send to Mobile Device' dialog for the current token "
+                        f"(URL tried: {url})"
                     )
+                raise GrentonObjectManagerConnectionError(
+                    f"OM returned HTTP {response.status} for {url} — body: {body_preview!r}"
+                )
         except aiohttp.ClientError as e:
-            raise GrentonObjectManagerConnectionError(f"Connection error: {e}")
-    
-    def _parse_interface_zip(self, zip_data: bytes) -> dict[str, Any]:
-        """Parse the interface ZIP file and extract mobile interface data.
-        
-        Args:
-            zip_data: Raw ZIP file data
-            
-        Returns:
-            Parsed interface data
-            
-        Raises:
-            GrentonObjectManagerDataError: If ZIP parsing fails or data is invalid
-        """
-        try:
-            with zipfile.ZipFile(io.BytesIO(zip_data)) as z:
-                _LOGGER.debug("Fetched and opened interface ZIP successfully")
-                _LOGGER.debug("ZIP contents: %s", z.namelist())
-                
-                if "mygrenton/data.json" not in z.namelist():
-                    raise GrentonObjectManagerDataError(
-                        "Invalid interface ZIP: missing mygrenton/data.json"
-                    )
-                
-                with z.open("mygrenton/data.json") as f:
-                    text = f.read().decode("utf-8")
-                    return json.loads(text)
-        
-        except zipfile.BadZipFile:
-            raise GrentonObjectManagerDataError("Invalid ZIP file format")
-        except json.JSONDecodeError:
-            raise GrentonObjectManagerDataError("Invalid JSON data in interface file")
-        except Exception as e:
-            raise GrentonObjectManagerDataError(f"Failed to parse interface data: {e}")
+            raise GrentonObjectManagerConnectionError(
+                f"Connection error to {url}: {type(e).__name__}: {e}"
+            )
 
 
 class GrentonObjectManagerAuthError(Exception):

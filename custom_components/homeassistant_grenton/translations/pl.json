@@ -4,20 +4,31 @@
   "config": {
     "step": {
       "user": {
-        "title": "Konfiguruj interfejs Grenton",
-        "description": "Wprowadź adres IP, port i PIN z Grenton Object Manager, aby się połączyć.",
+        "title": "Wgraj plik projektu Grenton",
+        "description": "Wgraj plik projektu Grenton (.omp) wyeksportowany z Object Manager. Integracja odczyta klucze szyfrowania, adresy CLU i układ widżetów.",
         "data": {
-          "ip_address": "Adres IP",
-          "port": "Port",
-          "pin": "PIN"
+          "omp_file": "Plik projektu (.omp)"
+        },
+        "data_description": {
+          "omp_file": "Plik .omp zapisany przez Object Manager (Plik → Zapisz projekt)"
+        }
+      },
+      "pick_interface": {
+        "title": "Wybierz interfejs mobilny",
+        "description": "W pliku projektu znaleziono kilka interfejsów mobilnych. Wybierz, który ma być używany.",
+        "data": {
+          "interface_node_id": "Interfejs"
         }
       }
     },
     "error": {
-      "invalid_auth": "Nieprawidłowy PIN lub błąd uwierzytelniania.",
-      "invalid_data": "Dane z urządzenia były niekompletne lub nieprawidłowe.",
-      "cannot_connect": "Nie można połączyć się z Grenton Object Manager pod podanym adresem.",
-      "unknown": "Wystąpił nieznany błąd."
+      "invalid_omp": "Plik nie jest prawidłowym plikiem projektu Grenton (.omp).",
+      "no_interfaces": "W pliku projektu nie znaleziono interfejsów mobilnych. Najpierw wyślij interfejs do urządzenia mobilnego w Object Manager.",
+      "unknown": "Nieoczekiwany błąd. Sprawdź logi Home Assistant."
+    },
+    "abort": {
+      "already_configured": "Ten projekt Grenton jest już skonfigurowany.",
+      "no_project": "Brak danych projektu. Zacznij od początku."
     }
   },
 

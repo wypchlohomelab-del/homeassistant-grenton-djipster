@@ -15,7 +15,7 @@ class GrentonEntityButton(BaseGrentonEntity, ButtonEntity): # pyright: ignore[re
         self,
         coordinator: GrentonCoordinator,
         id: str,
-        label: str,
+        label: str | None,
         action_click: GrentonAction,
         device_info: DeviceInfo | None = None,
     ) -> None:

@@ -16,12 +16,13 @@ class DeviceCameraMapper:
             type=dto.type,
             id=dto.id,
             entities=[],
+            name=dto.components[0].label,
         )
-        
+
         entity = GrentonEntityCamera(
             coordinator=coordinator,
             id=f"{dto.id}_0",
-            label=dto.components[0].label,
+            label=None,
             stream=dto.components[0].value,
             device_info=device.device_info,
         )
