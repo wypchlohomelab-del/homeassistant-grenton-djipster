@@ -139,7 +139,7 @@ def build_interface_dict(project: OmpProject, interface: OmpInterface) -> dict[s
     The OM API response combines encryption + CLU list + interface JSON in one payload.
     When loading from .omp those three come from separate files, so we reassemble them here.
     """
-    return {
+    result: dict[str, Any] = {
         # Provide defaults for fields that may be absent in older .omp data.json files.
         "version": 1,
         "name": interface.label,
@@ -157,8 +157,19 @@ def build_interface_dict(project: OmpProject, interface: OmpInterface) -> dict[s
                 "name": clu.name,
                 "ip": clu.ip,
                 "port": clu.port,
-                "connectionType": "LOCAL",
+                "connectionType": "LOCAL_ONLY",
             }
             for clu in project.clus
         ],
     }
+    # data.json may have lowercase theme (e.g. "blue") — normalize to uppercase.
+    if isinstance(result.get("theme"), str):
+        result["theme"] = result["theme"].upper()
+    # data.json may have null for these fields — restore safe defaults.
+    if result.get("pushNotifications") is None:
+        result["pushNotifications"] = []
+    if not result.get("name"):
+        result["name"] = interface.label
+    if result.get("icon") is None:
+        result["icon"] = ""
+    return result

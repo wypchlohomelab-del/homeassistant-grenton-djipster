@@ -5,30 +5,22 @@
     "step": {
       "user": {
         "title": "Upload Grenton Project File",
-        "description": "Upload your Grenton project file (.omp) exported from Object Manager. The integration will read the encryption keys, CLU addresses, and widget layout from it.",
+        "description": "Upload your Grenton project file (.omp) exported from Object Manager. The integration will read the encryption keys and CLU addresses, then download the object inventory from each CLU via TFTP.",
         "data": {
           "omp_file": "Project file (.omp)"
         },
         "data_description": {
           "omp_file": "The .omp file saved by Object Manager (File → Save Project)"
         }
-      },
-      "pick_interface": {
-        "title": "Select Mobile Interface",
-        "description": "Multiple mobile interfaces were found in the project file. Select which one to use.",
-        "data": {
-          "interface_node_id": "Interface"
-        }
       }
     },
     "error": {
       "invalid_omp": "The file is not a valid Grenton project file (.omp).",
-      "no_interfaces": "No mobile interfaces found in the project file. Use Object Manager to send an interface to a mobile device first.",
+      "no_clus": "No CLUs found in the project file. Make sure the .omp file contains at least one CLU.",
       "unknown": "Unexpected error. Check the Home Assistant logs for details."
     },
     "abort": {
-      "already_configured": "This Grenton project is already configured.",
-      "no_project": "No project data available. Please start over."
+      "already_configured": "This Grenton project is already configured."
     }
   },
 

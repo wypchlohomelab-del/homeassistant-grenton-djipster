@@ -8,10 +8,10 @@ from .widgets.union import GrentonWidgetUnionDto
 _LOGGER = logging.getLogger(__name__)
 
 class GrentonPageDto(BaseModel):
-    name: str
-    icon: str
-    isFullscreenWidget: bool
-    widgets: List[GrentonWidgetUnionDto]
+    name: str = ""
+    icon: str = ""
+    isFullscreenWidget: bool = False
+    widgets: List[GrentonWidgetUnionDto] = []
     
     @field_validator("widgets", mode="before")
     @classmethod

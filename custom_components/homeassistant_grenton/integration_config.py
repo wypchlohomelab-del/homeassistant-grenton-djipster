@@ -13,8 +13,10 @@ if TYPE_CHECKING:
 
 class GrentonConfigEntryData(TypedDict):
     """Type definition for config entry data."""
-    interface: dict[str, Any]
-    object_names: dict[str, str]  # lua_name -> project_name from om.lua; may be empty
+    key: str                               # base64 AES key from .omp
+    iv: str                                # base64 AES iv from .omp
+    clus: list[dict[str, Any]]             # [{id, serial_number, name, ip, port}]
+    objects: dict[str, dict[str, Any]]     # clu_id -> {lua_name -> {project_name, kind, type_id}}
 
 
 @dataclass

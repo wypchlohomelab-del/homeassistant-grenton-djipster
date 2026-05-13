@@ -5,30 +5,22 @@
     "step": {
       "user": {
         "title": "Wgraj plik projektu Grenton",
-        "description": "Wgraj plik projektu Grenton (.omp) wyeksportowany z Object Manager. Integracja odczyta klucze szyfrowania, adresy CLU i układ widżetów.",
+        "description": "Wgraj plik projektu Grenton (.omp) wyeksportowany z Object Manager. Integracja odczyta klucze szyfrowania i adresy CLU, a następnie pobierze spis obiektów z każdego CLU przez TFTP.",
         "data": {
           "omp_file": "Plik projektu (.omp)"
         },
         "data_description": {
           "omp_file": "Plik .omp zapisany przez Object Manager (Plik → Zapisz projekt)"
         }
-      },
-      "pick_interface": {
-        "title": "Wybierz interfejs mobilny",
-        "description": "W pliku projektu znaleziono kilka interfejsów mobilnych. Wybierz, który ma być używany.",
-        "data": {
-          "interface_node_id": "Interfejs"
-        }
       }
     },
     "error": {
       "invalid_omp": "Plik nie jest prawidłowym plikiem projektu Grenton (.omp).",
-      "no_interfaces": "W pliku projektu nie znaleziono interfejsów mobilnych. Najpierw wyślij interfejs do urządzenia mobilnego w Object Manager.",
+      "no_clus": "W pliku projektu nie znaleziono CLU. Upewnij się, że plik .omp zawiera co najmniej jeden CLU.",
       "unknown": "Nieoczekiwany błąd. Sprawdź logi Home Assistant."
     },
     "abort": {
-      "already_configured": "Ten projekt Grenton jest już skonfigurowany.",
-      "no_project": "Brak danych projektu. Zacznij od początku."
+      "already_configured": "Ten projekt Grenton jest już skonfigurowany."
     }
   },
 
